@@ -233,22 +233,6 @@ public class Camera2BasicFragment extends Fragment
                 return;
             }
 
-//            Image.Plane[] planes = image.getPlanes();
-//
-//            for (int i = 0; i < planes.length; i++) {
-//                ByteBuffer iBuffer = planes[i].getBuffer();
-//                int iSize = iBuffer.remaining();
-//                Log.i(TAG, "pixelStride  " + planes[i].getPixelStride());
-//                Log.i(TAG, "rowStride   " + planes[i].getRowStride());
-//                Log.i(TAG, "width  " + image.getWidth());
-//                Log.i(TAG, "height  " + image.getHeight());
-//                Log.i(TAG, "Finished reading data from plane  " + i);
-//            }
-//            int n_image_size = image.getWidth() * image.getHeight() * 3 / 2;
-//            final byte[] yuv420pbuf = new byte[n_image_size];
-//            System.arraycopy(ImageUtil.getBytesFromImageAsType(image, 2), 0, yuv420pbuf, 0, n_image_size);
-
-
             final Image.Plane[] planes = image.getPlanes();
 
             //数据有效宽度，一般的，图片width <= rowStride，这也是导致byte[].length <= capacity的原因
@@ -257,7 +241,7 @@ public class Camera2BasicFragment extends Fragment
             int height = image.getHeight();
 
             //此处用来装填最终的YUV数据，需要1.5倍的图片大小，因为Y U V 比例为 4:1:1
-            byte[] yuvBytes = new byte[width * height * ImageFormat.getBitsPerPixel(ImageFormat.YUV_420_888) / 8];
+            byte[] yBytes = new byte[width * height];
             //目标数组的装填到的位置
             int dstIndex = 0;
 
@@ -270,7 +254,6 @@ public class Camera2BasicFragment extends Fragment
             int pixelsStride, rowStride;
             for (int i = 0; i < planes.length; i++) {
                 pixelsStride = planes[i].getPixelStride();
-                Log.e(TAG, "pixelsStride: " + pixelsStride);
                 rowStride = planes[i].getRowStride();
 
                 ByteBuffer buffer = planes[i].getBuffer();
@@ -284,7 +267,7 @@ public class Camera2BasicFragment extends Fragment
                 if (i == 0) {
                     //直接取出来所有Y的有效区域，也可以存储成一个临时的bytes，到下一步再copy
                     for (int j = 0; j < height; j++) {
-                        System.arraycopy(bytes, srcIndex, yuvBytes, dstIndex, width);
+                        System.arraycopy(bytes, srcIndex, yBytes, dstIndex, width);
                         srcIndex += rowStride;
                         dstIndex += width;
                     }
@@ -316,7 +299,7 @@ public class Camera2BasicFragment extends Fragment
                     }
                 }
             }
-            FFmpegHandler.getInstance().pushCameraData(yuvBytes, yuvBytes.length, uBytes, uBytes.length, vBytes, vBytes.length);
+            FFmpegHandler.getInstance().pushCameraData(yBytes, yBytes.length, uBytes, uBytes.length, vBytes, vBytes.length);
             image.close();
         }
 
@@ -590,7 +573,7 @@ public class Camera2BasicFragment extends Fragment
                         Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),
                         new CompareSizesByArea());
                 mImageReader = ImageReader.newInstance(640, 480,
-                        ImageFormat.YUV_420_888, /*maxImages*/1);
+                        ImageFormat.YUV_420_888, 1);
                 mImageReader.setOnImageAvailableListener(
                         mOnImageAvailableListener, mBackgroundHandler);
 
@@ -895,7 +878,7 @@ public class Camera2BasicFragment extends Fragment
             }
             // This is the CaptureRequest.Builder that we use to take a picture.
             final CaptureRequest.Builder captureBuilder =
-                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             captureBuilder.addTarget(mImageReader.getSurface());
 
             // Use the same AE and AF modes as the preview.

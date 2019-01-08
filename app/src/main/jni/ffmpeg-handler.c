@@ -53,6 +53,7 @@ JNIEXPORT jint JNICALL Java_com_david_camerapush_ffmpeg_FFmpegHandler_init
 
     //output encoder initialize
     pCodec = avcodec_find_encoder(AV_CODEC_ID_H264);
+
     if (!pCodec) {
         LOGE("Can not find encoder!\n");
         return -1;
@@ -75,8 +76,6 @@ JNIEXPORT jint JNICALL Java_com_david_camerapush_ffmpeg_FFmpegHandler_init
     pCodecCtx->time_base = (AVRational) {1, 15};
     //目标的码率，即采样的码率；显然，采样码率越大，视频大小越大
     pCodecCtx->bit_rate = 400000;
-    //固定允许的码率误差，数值越大，视频越小
-//    pCodecCtx->bit_rate_tolerance = 4000000;
     pCodecCtx->gop_size = 50;
     /* Some formats want stream headers to be separate. */
     if (ofmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
@@ -91,22 +90,13 @@ JNIEXPORT jint JNICALL Java_com_david_camerapush_ffmpeg_FFmpegHandler_init
     pCodecCtx->qmax = 51;
     //Optional Param
     //两个非B帧之间允许出现多少个B帧数
-    //设置0表示不使用B帧
-    //b 帧越多，图片越小
+    //设置0表示不使用B帧，b 帧越多，图片越小
     pCodecCtx->max_b_frames = 0;
-    // Set H264 preset and tune
     AVDictionary *param = 0;
     //H.264
     if (pCodecCtx->codec_id == AV_CODEC_ID_H264) {
-//        av_dict_set(&param, "preset", "slow", 0);
-        /**
-         * 这个非常重要，如果不设置延时非常的大
-         * ultrafast,superfast, veryfast, faster, fast, medium
-         * slow, slower, veryslow, placebo.　这是x264编码速度的选项
-       */
-        av_dict_set(&param, "preset", "superfast", 0);
+        av_dict_set(&param, "preset", "superfast", 0); //x264编码速度的选项
         av_dict_set(&param, "tune", "zerolatency", 0);
-
     }
 
     if (avcodec_open2(pCodecCtx, pCodec, &param) < 0) {
@@ -179,14 +169,12 @@ JNIEXPORT jint JNICALL Java_com_david_camerapush_ffmpeg_FFmpegHandler_pushCamera
     //获取编码后的数据
     ret = avcodec_receive_packet(pCodecCtx, &enc_pkt);
 
-    //是否编码前的YUV数据
     av_frame_free(&pFrameYUV);
     if (ret != 0 || enc_pkt.size <= 0) {
         LOGE("avcodec_receive_packet error %s", av_err2str(ret));
         return -2;
     }
     enc_pkt.stream_index = video_st->index;
-//    AVRational time_base = ofmt_ctx->streams[0]->time_base;//{ 1, 1000 };
     enc_pkt.pts = count * (video_st->time_base.den) / ((video_st->time_base.num) * fps);
     enc_pkt.dts = enc_pkt.pts;
     enc_pkt.duration = (video_st->time_base.den) / ((video_st->time_base.num) * fps);
@@ -207,87 +195,7 @@ JNIEXPORT jint JNICALL Java_com_david_camerapush_ffmpeg_FFmpegHandler_pushCamera
 
     return 0;
 }
-//JNIEXPORT jint JNICALL Java_com_david_camerapush_ffmpeg_FFmpegHandler_pushCameraData
-//        (JNIEnv *jniEnv, jobject instance, jbyteArray array) {
-//
-//    jbyte *in = (*jniEnv)->GetByteArrayElements(jniEnv, array, NULL);
-//
-//    int ret = 0;
-//
-//    pFrameYUV = av_frame_alloc();
-//    int picture_size = av_image_get_buffer_size(pCodecCtx->pix_fmt, pCodecCtx->width,
-//                                                pCodecCtx->height, 1);
-//    uint8_t *buffers = (uint8_t *) av_malloc(picture_size);
-//
-//
-//    //将buffers的地址赋给AVFrame中的图像数据，根据像素格式判断有几个数据指针
-//    av_image_fill_arrays(pFrameYUV->data, pFrameYUV->linesize, buffers, pCodecCtx->pix_fmt,
-//                         pCodecCtx->width, pCodecCtx->height, 1);
-//
-//    //安卓摄像头数据为NV21格式，此处将其转换为YUV420P格式
-//    ////N21   0~width * height是Y分量，  width*height~ width*height*3/2是VU交替存储
-//    //复制Y分量的数据
-//    memcpy(pFrameYUV->data[0], in, y_length); //Y
-//    pFrameYUV->pts = count;
-//    for (int i = 0; i < uv_length; i++) {
-//        //将v数据存到第三个平面
-//        *(pFrameYUV->data[2] + i) = *(in + y_length + i * 2);
-//        //将U数据存到第二个平面
-//        *(pFrameYUV->data[1] + i) = *(in + y_length + i * 2 + 1);
-//    }
-//
-//    pFrameYUV->format = AV_PIX_FMT_YUV420P;
-//    pFrameYUV->width = yuv_width;
-//    pFrameYUV->height = yuv_height;
-//
-//    //例如对于H.264来说。1个AVPacket的data通常对应一个NAL
-//    //初始化AVPacket
-//    av_init_packet(&enc_pkt);
-//    enc_pkt.data = NULL;
-//    enc_pkt.size = 0;
-////    __android_log_print(ANDROID_LOG_WARN, "eric", "编码前时间:%lld",
-////                        (long long) ((av_gettime() - startTime) / 1000));
-//    //开始编码YUV数据
-//    ret = avcodec_send_frame(pCodecCtx, pFrameYUV);
-//    if (ret != 0) {
-//        LOGE("avcodec_send_frame error");
-//        return -1;
-//    }
-//    //获取编码后的数据
-//    ret = avcodec_receive_packet(pCodecCtx, &enc_pkt);
-//    LOGE("receive_packet:%d", ret);
-////    __android_log_print(ANDROID_LOG_WARN, "eric", "编码时间:%lld",
-////                        (long long) ((av_gettime() - startTime) / 1000));
-//    //是否编码前的YUV数据
-//    av_frame_free(&pFrameYUV);
-//    if (ret != 0 || enc_pkt.size <= 0) {
-//        LOGE("avcodec_receive_packet error %s", av_err2str(ret));
-//        return -2;
-//    }
-//    enc_pkt.stream_index = video_st->index;
-//    AVRational time_base = ofmt_ctx->streams[0]->time_base;//{ 1, 1000 };
-//    enc_pkt.pts = count * (video_st->time_base.den) / ((video_st->time_base.num) * fps);
-//    enc_pkt.dts = enc_pkt.pts;
-//    enc_pkt.duration = (video_st->time_base.den) / ((video_st->time_base.num) * fps);
-//    LOGE("index:%d,pts:%lld,dts:%lld,duration:%lld,time_base:%d,%d,fps :%d",
-//         count,
-//         (long long) enc_pkt.pts,
-//         (long long) enc_pkt.dts,
-//         (long long) enc_pkt.duration,
-//         time_base.num, time_base.den, fps);
-//    enc_pkt.pos = -1;
-//
-//
-//    ret = av_interleaved_write_frame(ofmt_ctx, &enc_pkt);
-//    if (ret != 0) {
-//        LOGE("av_interleaved_write_frame failed");
-//    }
-//    count++;
-//    av_packet_unref(&enc_pkt);
-//    (*jniEnv)->ReleaseByteArrayElements(jniEnv, array, in, 0);
-//    return 0;
-//
-//}
+
 
 /**
  * 释放资源
